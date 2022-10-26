@@ -59,7 +59,7 @@ def db():
 def get_type(message):
     entities = message.entities or message.caption_entities
     if not entities or entities[-1].type != "hashtag":
-        return None, "No hashtags found"
+        return None, "Нету айди"
     hashtag = entities[-1].get_text(message.text or message.caption)
     return hashtag[3:], None
 
@@ -93,8 +93,7 @@ async def help(message: types.Message):
     await message.answer('/start - запустить бота\n\
 /buy - купить подписку бота\n\
 /subscription - показать подписку\n\
-/change_role или /chr - сменить роль\n\
-/question или /q - задать вопрос'
+/change_role или /chr - сменить роль\n\'
     )
 
 @dp.message_handler(commands=['buy'])
@@ -191,7 +190,7 @@ async def pukton(call: types.CallbackQuery):
     cur.execute('UPDATE users SET role = ? WHERE user = ?', ('pukton', call.from_user.id,))
     con.commit()
     con.close()
-    await bot.send_message(call.from_user.id, 'Теперь ваша роль пуктон, вы можете задать вопрос используя команду /question')
+    await bot.send_message(call.from_user.id, 'Теперь ваша роль пуктон, вы можете задать вопрос')
 
 @dp.callback_query_handler(Text(equals='testo'))
 async def testo(call: types.CallbackQuery):
@@ -207,7 +206,7 @@ async def testo(call: types.CallbackQuery):
     cur.execute('UPDATE users SET role = ? WHERE user = ?', ('testo', call.from_user.id,))
     con.commit()
     con.close()
-    await bot.send_message(call.from_user.id, 'Теперь ваша роль тесто, вы можете задать вопрос используя команду /question')
+    await bot.send_message(call.from_user.id, 'Теперь ваша роль тесто, вы можете задать вопрос')
 
 '''@dp.message_handler(commands=['q', 'question'])
 async def question(message: types.Message):
@@ -448,7 +447,7 @@ async def send_msg(message: types.Message):
             await message.copy_to(CHANNELS[data[0]], caption=txt)
         else:
             await bot.send_message(CHANNELS[data[0]], txt)
-        await message.answer(f'Вы можете общаться с теми кто отвечает, просто пришлите мне что-то, и я перешлю это им')
+        await message.answer(f'Ждите ответа')
         con.commit()
         con.close()
 
