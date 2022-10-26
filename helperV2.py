@@ -209,7 +209,7 @@ async def testo(call: types.CallbackQuery):
     con.close()
     await bot.send_message(call.from_user.id, 'Теперь ваша роль тесто, вы можете задать вопрос используя команду /question')
 
-@dp.message_handler(commands=['q', 'question'])
+'''@dp.message_handler(commands=['q', 'question'])
 async def question(message: types.Message):
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
@@ -269,6 +269,7 @@ async def send_question(message: types.Message, state: FSMContext):
     await state.finish()
     con.commit()
     con.close()
+'''
 
 @dp.message_handler(IsReplyFilter(is_reply=True), IDFilter(chat_id=CHAT_IDS), commands=['answerer', 'a'])
 async def set_helper(message: types.Message):
@@ -412,10 +413,45 @@ async def send_msg(message: types.Message):
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
     data = cur.execute('SELECT role, msg FROM questions WHERE user = ? AND status = ?', (message.from_user.id, 0,)).fetchone()
+    data1 = cur.execute('SELECT user, role, paid FROM users WHERE user = ?', (message.from_user.id,)).fetchone()
+    rated_quest = cur.execute('SELECT id FROM questions WHERE user = ? AND status = ?', (message.from_user.id, 2,)).fetchone()
+    open_quest = cur.execute('SELECT id FROM questions WHERE user = ? AND status = ?', (message.from_user.id, 0,)).fetchone()
     con.close()
 
+    if not data1:
+        await bot.send_message(message.from_user.id, 'Вы не зарегистрированы, испльзуйте команду /start')
+        return
+    
+    if data1[1] == "No":
+        await bot.send_message(message.from_user.id, 'У вас нету роли, установите его с помощью команды /change_role')
+        return
+    
+    if data1[2] == 0:
+        await message.answer('Купите подписку используя команду /buy, чтобы задавать вопросы')
+        return
+    
+    if rated_quest:
+        await message.answer(f'Перед тем как задать вопрос, пожалуйста оцените нас от 1 до 5, если же вы не хотите оценивать, то просто пропустите', reply_markup=rate_kb)
+        return
+
     if not data:
-        await message.answer('Спросите что-нибудь')
+        text = message.text or message.caption
+        con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
+        cur = con.cursor()
+        data = cur.execute('SELECT role FROM users WHERE user = ?', (message.from_user.id,)).fetchone()
+        cur.execute('INSERT INTO questions (role, text, user, helper) VALUES (?, ?, ?, NULL) RETURNING id', (data[0], text, message.from_user.id))
+        row = cur.fetchone()
+        id = row[0] if row else None
+        username =  '@'+message.from_user.username if message.from_user.username is not None else 'нету юзернейма'
+        txt = f'Новый вопрос от {username}\n{text}\n#id{id}'
+        if message.content_type == 'photo' or message.content_type == 'video':
+            await message.copy_to(CHANNELS[data[0]], caption=txt)
+        else:
+            await bot.send_message(CHANNELS[data[0]], txt)
+        await message.answer(f'Вы можете общаться с теми кто отвечает, просто пришлите мне что-то, и я перешлю это им')
+        con.commit()
+        con.close()
+
         return
 
     await message.copy_to(CHATS[data[0]], reply_to_message_id=data[1])
