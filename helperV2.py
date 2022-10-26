@@ -24,8 +24,7 @@ CHANNEL_IDS = [-1001619177503, -1001763723294]
 CHATS = {'pukton': -1001800983569, 'testo': -1001882385234}
 CHAT_IDS = [-1001800983569, -1001882385234]
 DEFAULT_DATE = datetime.date(1, 1, 1)
-PRICE = types.LabeledPrice(label='Come on, buy it!', amount=9900)
-
+PRICE = types.LabeledPrice(label='Ну купи пожалуйста!!!', amount=9900)
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token='1682322424:AAEdZRXr0FKSdeqrkG5h4zuHNTZnkuveh_o')
@@ -40,9 +39,9 @@ for i in range(1, 6):
     i = str(i)
     rates.append(InlineKeyboardButton(i, callback_data=i))
 
-role = InlineKeyboardMarkup(row_width=2).add(InlineKeyboardButton('pukton', callback_data='pukton'), InlineKeyboardButton('testo', callback_data='testo'))
+role = InlineKeyboardMarkup(row_width=2).add(InlineKeyboardButton('пуктон', callback_data='pukton'), InlineKeyboardButton('тесто', callback_data='testo'))
 rate_kb = InlineKeyboardMarkup(row_width=3).add(*rates)
-rate_kb.add(InlineKeyboardButton('Skip', callback_data='no_rate'))
+rate_kb.add(InlineKeyboardButton('Пропустить', callback_data='no_rate'))
 
 
 class Form(StatesGroup):
@@ -67,13 +66,12 @@ def get_type(message):
 async def setchbf():
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
-    cur.execute('UPDATE users SET paid = 0 WHERE expiration < ?', (datetime.date.today()))
+    cur.execute('UPDATE users SET paid = 0 WHERE expiration < ?', (datetime.date.today(),))
     con.commit()
     con.close()
 
 def set_false_job():
     scheduler.add_job(setchbf, 'interval', days=1)
-
 
 
 @dp.message_handler(commands='start')
@@ -88,15 +86,15 @@ async def start(message: types.Message):
         await message.answer("Select your role", reply_markup=role)
         return
     con.close()
-    await message.answer('I think you need some /help')
+    await message.answer('Я думаю вам нужна помощь, используйте команду /help')
 
 @dp.message_handler(commands='help')
 async def help(message: types.Message):
-    await message.answer('/start - start this bot\n\
-/buy - buy a full version of bot\n\
-/subscription - show your subscription\n\
-/change_role or /chr - change your role\n\
-/question or /q - ask a question'
+    await message.answer('/start - запустить бота\n\
+/buy - купить подписку бота\n\
+/subscription - показать подписку\n\
+/change_role или /chr - сменить роль\n\
+/question или /q - задать вопрос'
     )
 
 @dp.message_handler(commands=['buy'])
@@ -106,17 +104,17 @@ async def process_buy_command(message: types.Message):
     data = cur.execute('SELECT user, paid FROM users WHERE user = ?', (message.from_user.id,)).fetchone()
     con.close()
     if data[1] == 1:
-        await message.answer('You already have /subscription')
+        await message.answer('У вас уже есть подписка, вы можете посмотреть свою подписку используя команду /subscription')
         return
     if INVOICE_TOKEN.split(':')[1] == 'TEST':
-        await bot.send_message(message.chat.id, 'This is a test payment, use this card: `1111 1111 1111 1026`, CVC 000, 12/22')
+        await bot.send_message(message.chat.id, 'Это тестовая оплата, используйте эти данные: `1111 1111 1111 1026`, CVC 000, 12/22')
     await bot.send_invoice(
         message.chat.id,
-        title='GIVE ME YOUR MONEY',
-        description='JUST BUY IT',
+        title='Покормите разраба',
+        description='Хочу денег :(',
         provider_token=INVOICE_TOKEN,
         currency='rub',
-        is_flexible=False,  # True если конечная цена зависит от способа доставки
+        is_flexible=False,
         prices=[PRICE],
         start_parameter='full-bot',
         payload='some-invoice-payload-for-our-internal-use'
@@ -128,7 +126,7 @@ async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery)
 
 @dp.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
 async def process_successful_payment(message: types.Message):
-    print('successful_payment:')
+    print('successful_payment: ', message.from_user.id)
     pmnt = message.successful_payment.to_python()
     for key, val in pmnt.items():
         print(f'{key} = {val}')
@@ -144,7 +142,7 @@ async def process_successful_payment(message: types.Message):
 
     await bot.send_message(
         message.chat.id,
-        'You have successfully purcheased full version of this bot! `{total_amount} {currency}`\nYou can see your /subscription'.format(
+        'Вы успешно приобрели подписку за `{total_amount} {currency}`\nВы можете посмотреть подписку используя команду /subscription'.format(
             total_amount=message.successful_payment.total_amount // 100,
             currency=message.successful_payment.currency
         )
@@ -157,13 +155,13 @@ async def subscription(message: types.Message):
     data = cur.execute('SELECT user, paid, expiration FROM users WHERE user = ?', (message.from_user.id,)).fetchone()
     con.close()
     if not data:
-        await message.answer('You are not registered yet, use /start command')
+        await message.answer('Вы не зарегистрированы, испльзуйте команду /start')
         return
 
     if data[2] == DEFAULT_DATE:
-        await message.answer('You do not have purchuased a subscription')
+        await message.answer('У вас нету подписки')
 
-    text = 'Please /buy subscription, because your subscription is expired in: ' if data[1] == 0 else 'Your subscription expires in: '
+    text = 'Пожалуйста приобретите подписку используя команду /buy, потому что ваша подписка закончилась в: ' if data[1] == 0 else 'Ваша подписка закончится в: '
     text += str(data[2])
 
     await message.answer(text)
@@ -175,9 +173,9 @@ async def change_role(message: types.Message):
     data = cur.execute('SELECT user FROM users WHERE user = ?', (message.from_user.id,)).fetchall()
     con.close()
     if not data:
-        await message.answer('You are not registered yet, use /start command')
+        await message.answer('Вы не зарегистрированы, испльзуйте команду /start')
         return
-    await message.answer("Select your role", reply_markup=role)
+    await message.answer("Выберите свою роль", reply_markup=role)
 
 @dp.callback_query_handler(Text(equals='pukton'))
 async def pukton(call: types.CallbackQuery):
@@ -187,13 +185,13 @@ async def pukton(call: types.CallbackQuery):
     cur = con.cursor()
     data = cur.execute('SELECT user FROM users WHERE user = ?', (call.from_user.id,)).fetchall()
     if not data:
-        await bot.send_message(call.from_user.id, 'You are not registered yet, use /start command')
+        await bot.send_message(call.from_user.id, 'Вы не зарегистрированы, испльзуйте команду /start')
         con.close()
         return
     cur.execute('UPDATE users SET role = ? WHERE user = ?', ('pukton', call.from_user.id,))
     con.commit()
     con.close()
-    await bot.send_message(call.from_user.id, 'Now your role is pukton, your questions will be redirected to puktoners, use /question command in order to ask something')
+    await bot.send_message(call.from_user.id, 'Теперь ваша роль пуктон, вы можете задать вопрос используя команду /question')
 
 @dp.callback_query_handler(Text(equals='testo'))
 async def testo(call: types.CallbackQuery):
@@ -203,13 +201,13 @@ async def testo(call: types.CallbackQuery):
     cur = con.cursor()
     data = cur.execute('SELECT user FROM users WHERE user = ?', (call.from_user.id,)).fetchall()
     if not data:
-        await bot.send_message(call.from_user.id, 'You are not registered yet, use /start command')
+        await bot.send_message(call.from_user.id, 'Вы не зарегистрированы, испльзуйте команду /start')
         con.close()
         return
     cur.execute('UPDATE users SET role = ? WHERE user = ?', ('testo', call.from_user.id,))
     con.commit()
     con.close()
-    await bot.send_message(call.from_user.id, 'Now your role is testo, your questions will be redirected to testoners, use /question command in order to ask something')
+    await bot.send_message(call.from_user.id, 'Теперь ваша роль тесто, вы можете задать вопрос используя команду /question')
 
 @dp.message_handler(commands=['q', 'question'])
 async def question(message: types.Message):
@@ -221,27 +219,27 @@ async def question(message: types.Message):
     con.close()
 
     if not data:
-        await bot.send_message(message.from_user.id, 'You are not registered yet, use /start command')
+        await bot.send_message(message.from_user.id, 'Вы не зарегистрированы, испльзуйте команду /start')
         return
     
     if data[1] == "No":
-        await bot.send_message(message.from_user.id, 'You do not have a role, use /change_role command')
+        await bot.send_message(message.from_user.id, 'У вас нету роли, установите его с помощью команды /change_role')
         return
     
     if data[2] == 0:
-        await message.answer('/buy full version of this bot, to ask a question')
+        await message.answer('Купите подписку используя команду /buy, чтобы задавать вопросы')
         return
     
     if rated_quest:
-        await message.answer(f'Before asking neew question, please rate us from 1 to 5. If you do not want to rate our system, you can easily skip it', reply_markup=rate_kb)
+        await message.answer(f'Перед тем как задать вопрос, пожалуйста оцените нас от 1 до 5, если же вы не хотите оценивать, то просто пропустите', reply_markup=rate_kb)
         return
     
     if open_quest:
-        await message.answer('You cannot ask a new question, until your last question is closed')
+        await message.answer('Вы не можете спросить что-то, пока ваш последний вопрос не закроют')
         return
 
     await Form.question.set()
-    await message.answer('Write your question, which is related to your role, if you did not wanted ask a question use /cancel')
+    await message.answer('Напишите ваш вопрос, связанный с вашей ролью, чтобы отменить используйте /cancel')
 
 @dp.message_handler(state='*', commands='cancel')
 #@dp.message_handler(Text(equals='cancel', ignore_case=True), state='*')
@@ -250,7 +248,7 @@ async def cancel(message: types.Message, state: FSMContext):
     if current_state is None:
         return
     await state.finish()
-    await message.answer('Canceled')
+    await message.answer('Отменено')
 
 @dp.message_handler(state=Form.question, content_types=[ContentType.TEXT, ContentType.PHOTO, ContentType.VIDEO])
 async def send_question(message: types.Message, state: FSMContext):
@@ -261,13 +259,13 @@ async def send_question(message: types.Message, state: FSMContext):
     cur.execute('INSERT INTO questions (role, text, user, helper) VALUES (?, ?, ?, NULL) RETURNING id', (data[0], text, message.from_user.id))
     row = cur.fetchone()
     id = row[0] if row else None
-    username =  '@'+message.from_user.username if message.from_user.username is not None else 'no username'
-    txt = f'New question from {username}\n{text}\n#id{id}'
+    username =  '@'+message.from_user.username if message.from_user.username is not None else 'нету юзернейма'
+    txt = f'Новый вопрос от {username}\n{text}\n#id{id}'
     if message.content_type == 'photo' or message.content_type == 'video':
         await message.copy_to(CHANNELS[data[0]], caption=txt)
     else:
         await bot.send_message(CHANNELS[data[0]], txt)
-    await message.answer(f'You can text to your answerers, just send me something, and I will resend it to the answerers')
+    await message.answer(f'Вы можете общаться с теми кто отвечает, просто пришлите мне что-то, и я перешлю это им')
     await state.finish()
     con.commit()
     con.close()
@@ -282,11 +280,11 @@ async def set_helper(message: types.Message):
     cur = con.cursor()
     data = cur.execute('SELECT id, user, status FROM questions WHERE id = ?', (int(id),)).fetchone()
     if not data:
-        await message.answer('Question is not found')
+        await message.answer('Вопрос не найден')
         con.close()
         return
     if data[2] == 1 or data[2] == 2:
-        await message.answer('Question is closed')
+        await message.answer('Вопрос закрыт')
         con.close()
         return
     
@@ -298,7 +296,7 @@ async def set_helper(message: types.Message):
         cur.execute('UPDATE questions SET helper = ? WHERE id = ?', (args, int(id),))
     con.commit()
     con.close()
-    await message.reply('Answerer set')
+    await message.reply('Отвечающий установлен')
 
 @dp.message_handler(IsReplyFilter(is_reply=True), IDFilter(chat_id=CHAT_IDS), commands=['close', 'c'])
 async def close_question(message: types.Message):
@@ -313,20 +311,20 @@ async def close_question(message: types.Message):
     user = data[1]
 
     if not data:
-        await message.answer('Question is not found')
+        await message.answer('Вопрос не найден')
         con.close()
         return
     
     if data[2] == 1 or data[2] == 2:
-        await message.answer('Question is closed')
+        await message.answer('Вопрос закрыт')
         con.close()
         return
     
     cur.execute('UPDATE questions SET status = ? WHERE id = ?', (2, int(id),))
     con.commit()
     con.close()
-    await message.reply('You have closed this question')
-    await bot.send_message(user, f'Rate us from 1 to 5', reply_markup=rate_kb)
+    await message.reply('Вы закрыли этот вопрос')
+    await bot.send_message(user, f'Оцените нас от 1 до 5', reply_markup=rate_kb)
 
 @dp.message_handler(IsReplyFilter(is_reply=True), IDFilter(chat_id=CHAT_IDS), commands=['no_rate_close', 'nrc'])
 async def close_question_no_rate(message: types.Message):
@@ -341,19 +339,19 @@ async def close_question_no_rate(message: types.Message):
     user = data[1]
 
     if not data:
-        await message.answer('Question is not found')
+        await message.answer('Вопрос не найден')
         con.close()
         return
     
     if data[2] == 1 or data[2] == 2:
-        await message.answer('Question is closed')
+        await message.answer('Вопрос закрыт')
         con.close()
         return
     
     cur.execute('UPDATE questions SET status = ? WHERE id = ?', (1, int(id),))
     con.commit()
     con.close()
-    await message.reply('You have closed this question without rating')
+    await message.reply('Вы закрыли вопрос без рейтинга')
 
 @dp.message_handler(IDFilter(chat_id=CHAT_IDS), commands=['stats'])
 async def question_stats(message: types.Message):
@@ -367,20 +365,20 @@ async def question_stats(message: types.Message):
     txt = ''
     
     if len(no_help) < 1 and len(helping) < 1:
-        await message.answer('There are no open questions')
+        await message.reply('Не нашлось открытых вопросов по этой роли')
         return
     
     if len(no_help) > 0:
-        txt += 'Questions without answerers:\n'
+        txt += 'Свободные вопросы:\n'
         for n, i in enumerate(no_help, 1):
-            txt += f'{n}. id: {i[0]}; link: t.me/c/{chats[chat]}/{i[2]}\n'
+            txt += f'{n}. id: {i[0]}; ссылка: t.me/c/{chats[chat]}/{i[2]}\n'
     
     if len(helping) > 0:
-        txt += '\nQuestions with answerers:\n'
+        txt += '\nЗанятые вопросы:\n'
         for n, i in enumerate(helping, 1):
-            txt += f'{n}. id: {i[0]}; answerer: {i[1]}; link: t.me/c/{chats[chat]}/{i[2]}\n'
+            txt += f'{n}. id: {i[0]}; отвечающий: {i[1]}; ссылка: t.me/c/{chats[chat]}/{i[2]}\n'
     
-    await message.answer(txt)
+    await message.reply(txt)
 
 @dp.callback_query_handler(Text(equals=['1', '2', '3', '4', '5', 'no_rate']))
 async def rate(call: types.CallbackQuery):
@@ -391,7 +389,7 @@ async def rate(call: types.CallbackQuery):
     quest = cur.execute('SELECT id FROM questions WHERE user = ? AND status = ?', (call.from_user.id, 2,)).fetchone()
     
     if not quest:
-        await bot.send_message(call.from_user.id, 'Question is not found')
+        await bot.send_message(call.from_user.id, 'Вопрос не найден')
         con.close()
         return
     
@@ -399,15 +397,15 @@ async def rate(call: types.CallbackQuery):
     
     if call.data != 'no_rate':
         cur.execute('UPDATE questions SET rating = ? WHERE id = ?', (int(call.data), quest[0],))
-        await bot.send_message(CHATS[data[1]], f'User rated the answer for {call.data}', reply_to_message_id=data[0])
+        await bot.send_message(CHATS[data[1]], f'Пользователь оценил ответ на {call.data}', reply_to_message_id=data[0])
     
     if call.data == 'no_rate':
-        await bot.send_message(CHATS[data[1]], 'User prefered not to rate us', reply_to_message_id=data[0])
+        await bot.send_message(CHATS[data[1]], 'Пользователь предпочел не оценивать', reply_to_message_id=data[0])
     
     cur.execute('UPDATE questions SET status = ? WHERE id = ?', (1, quest[0],))
     con.commit()
     con.close()
-    await bot.send_message(call.from_user.id, 'Thank you!')
+    await bot.send_message(call.from_user.id, 'Спасибо!')
 
 @dp.message_handler(chat_type=ChatType.PRIVATE, content_types='any')
 async def send_msg(message: types.Message):    
@@ -417,7 +415,7 @@ async def send_msg(message: types.Message):
     con.close()
 
     if not data:
-        await message.answer('Ask me something')
+        await message.answer('Спросите что-нибудь')
         return
 
     await message.copy_to(CHATS[data[0]], reply_to_message_id=data[1])
@@ -435,11 +433,11 @@ async def answer_question(message: types.Message):
     con.close()
 
     if not data:
-        await message.answer('Question is not found')
+        await message.answer('Вопрос не найден')
         return
     
     if data[2] == 1 or data[2] == 2:
-        await message.answer('Question is closed')
+        await message.answer('Вопрос закрыт')
         return
     
     await message.copy_to(data[1])
