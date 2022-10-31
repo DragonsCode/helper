@@ -80,7 +80,7 @@ async def start(message: types.Message):
         cur.execute('INSERT INTO users (user, expiration) VALUES (?, ?)', (message.from_user.id, DEFAULT_DATE,))
         con.commit()
         con.close()
-        await message.answer("Select your role", reply_markup=role)
+        await message.answer("Выберите свою роль", reply_markup=role)
         return
     con.close()
     await message.answer('Я думаю вам нужна помощь, используйте команду /help')
@@ -301,7 +301,7 @@ async def send_msg(message: types.Message):
     if data3[0] == 0:
         data2 = cur.execute('SELECT id, username FROM site WHERE username = ?', (username,)).fetchall()
         if not data2:
-            await message.answer('Payment not found')
+            await message.answer('Платеж не найден')
             con.close()
             return
 
