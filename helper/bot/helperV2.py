@@ -1,3 +1,4 @@
+#говнокод от @dragons_play
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -16,15 +17,17 @@ from yookassa import Payment
 
 from config import *
 
-
+#логгер
 logging.basicConfig(level=logging.INFO)
+#инициализация бота
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
+#старт обработчика списка задач
 scheduler = AsyncIOScheduler()
 scheduler.start()
 
-
+#кнопки
 rates = []
 for i in range(1, 6):
     i = str(i)
@@ -35,20 +38,23 @@ rate_kb = InlineKeyboardMarkup(row_width=3).add(*rates)
 rate_kb.add(InlineKeyboardButton('Пропустить', callback_data='no_rate'))
 
 
-class Form(StatesGroup):
-    question = State() 
-
-
 def db():
+    """
+    создание таблиц в бд
+    """
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
     cur.execute('CREATE TABLE IF NOT EXISTS users (user INTEGER, paid INTEGER DEFAULT 0, role TEXT DEFAULT "No", expiration DATE DEFAULT NULL)')
-    cur.execute('CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY, role TEXT, text TEXT, user INTEGER, helper TEXT, status INTEGER DEFAULT 0, rating INTEGER DEFAULT 0, msg INTEGER)')
+    cur.execute('CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY, role TEXT, text TEXT, user INTEGER, helper TEXT, status INTEGER DEFAULT 0, rating INTEGER DEFAULT 0, msg INTEGER, msgch INTEGER)')
     cur.execute('CREATE TABLE IF NOT EXISTS site (id TEXT, username TEXT)')
     con.commit()
     con.close()
 
 def get_type(message):
+    """
+    обрабатывает и возвращает последний хэштег из сообщения
+    нужен для извлечения айди вопроса вида "#id..."
+    """
     entities = message.entities or message.caption_entities
     if not entities or entities[-1].type != "hashtag":
         return None, "No hashtags found"
@@ -56,6 +62,10 @@ def get_type(message):
     return hashtag[3:], None
 
 async def setchbf():
+    """
+    аннуляет подписку у тех у кого он истек
+    а также проверяет "отмененные" платежи через апи яндекса
+    """
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
     cur.execute('UPDATE users SET paid = 0 WHERE expiration < ?', (datetime.date.today(),))
@@ -68,11 +78,20 @@ async def setchbf():
     con.close()
 
 def set_false_job():
+    """
+    добавляем в список задач функцию setchbf
+    и даем интервал для выполнения 1 день
+    """
     scheduler.add_job(setchbf, 'interval', days=1)
 
 
-@dp.message_handler(commands='start')
+@dp.message_handler(commands='start', chat_type=ChatType.PRIVATE)
 async def start(message: types.Message):
+    """
+    команда старт бота
+    если пользователь впервые в боте то добавляет его в бд и просит выбрать роль
+    если не впервые то советует ознокомиться с командами бота
+    """
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
     data = cur.execute('SELECT user FROM users WHERE user = ?', (message.from_user.id,)).fetchall()
@@ -85,16 +104,22 @@ async def start(message: types.Message):
     con.close()
     await message.answer('Я думаю вам нужна помощь, используйте команду /help')
 
-@dp.message_handler(commands='help')
+@dp.message_handler(commands='help', chat_type=ChatType.PRIVATE)
 async def help(message: types.Message):
+    """
+    помощь по командам
+    """
     await message.answer('/start - запустить бота\n\
 /subscription - показать подписку\n\
 /change_role или /chr - сменить роль\n\
 /question или /q - задать вопрос'
     )
 
-@dp.message_handler(commands='subscription')
+@dp.message_handler(commands='subscription', chat_type=ChatType.PRIVATE)
 async def subscription(message: types.Message):
+    """
+    команда для просмотра подписки
+    """
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
     data = cur.execute('SELECT user, paid, expiration FROM users WHERE user = ?', (message.from_user.id,)).fetchone()
@@ -106,13 +131,16 @@ async def subscription(message: types.Message):
     if data[2] == DEFAULT_DATE:
         await message.answer('У вас нету подписки')
 
-    text = 'Пожалуйста приобретите подписку используя команду /buy, потому что ваша подписка закончилась в: ' if data[1] == 0 else 'Ваша подписка закончится в: '
+    text = 'Пожалуйста приобретите подписку используя команду, потому что ваша подписка закончилась в: ' if data[1] == 0 else 'Ваша подписка закончится в: '
     text += str(data[2])
 
     await message.answer(text)
 
-@dp.message_handler(commands=['change_role', 'chr'])
+@dp.message_handler(commands=['change_role', 'chr'], chat_type=ChatType.PRIVATE)
 async def change_role(message: types.Message):
+    """
+    команда для смены роля
+    """
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
     data = cur.execute('SELECT user FROM users WHERE user = ?', (message.from_user.id,)).fetchall()
@@ -124,6 +152,10 @@ async def change_role(message: types.Message):
 
 @dp.callback_query_handler(Text(equals='pukton'))
 async def pukton(call: types.CallbackQuery):
+    """
+    обработчик нажатия на инлайн кнопку пуктона
+    изменяет роль на пуктон
+    """
     await call.answer()
     await bot.delete_message(call.from_user.id, call.message.message_id)
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
@@ -136,10 +168,14 @@ async def pukton(call: types.CallbackQuery):
     cur.execute('UPDATE users SET role = ? WHERE user = ?', ('pukton', call.from_user.id,))
     con.commit()
     con.close()
-    await bot.send_message(call.from_user.id, 'Теперь ваша роль пуктон, вы можете задать вопрос используя команду /question')
+    await bot.send_message(call.from_user.id, 'Теперь ваша роль пуктон, вы можете задать вопрос')
 
 @dp.callback_query_handler(Text(equals='testo'))
 async def testo(call: types.CallbackQuery):
+    """
+    обработчик нажатия на инлайн кнопку теста
+    изменяет роль на тесто
+    """
     await call.answer()
     await bot.delete_message(call.from_user.id, call.message.message_id)
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
@@ -152,10 +188,14 @@ async def testo(call: types.CallbackQuery):
     cur.execute('UPDATE users SET role = ? WHERE user = ?', ('testo', call.from_user.id,))
     con.commit()
     con.close()
-    await bot.send_message(call.from_user.id, 'Теперь ваша роль тесто, вы можете задать вопрос используя команду /question')
+    await bot.send_message(call.from_user.id, 'Теперь ваша роль тесто, вы можете задать вопрос')
 
 @dp.message_handler(IsReplyFilter(is_reply=True), IDFilter(chat_id=CHAT_IDS), commands=['answerer', 'a'])
 async def set_helper(message: types.Message):
+    """
+    назначение хелпера на вопрос
+    если без аргументов то хелпером вопроса становится тот кто использовал команду
+    """
     id, err = get_type(message.reply_to_message)
     if id is None:
         print(err)
@@ -184,6 +224,9 @@ async def set_helper(message: types.Message):
 
 @dp.message_handler(IsReplyFilter(is_reply=True), IDFilter(chat_id=CHAT_IDS), commands=['close', 'c'])
 async def close_question(message: types.Message):
+    """
+    команда для закрытия вопроса с рейтингом
+    """
     id, err = get_type(message.reply_to_message)
     if id is None:
         await message.answer(err)
@@ -212,6 +255,9 @@ async def close_question(message: types.Message):
 
 @dp.message_handler(IsReplyFilter(is_reply=True), IDFilter(chat_id=CHAT_IDS), commands=['no_rate_close', 'nrc'])
 async def close_question_no_rate(message: types.Message):
+    """
+    команда для закрытия вопроса без рейтинга
+    """
     id, err = get_type(message.reply_to_message)
     if id is None:
         await message.answer(err)
@@ -237,19 +283,61 @@ async def close_question_no_rate(message: types.Message):
     con.close()
     await message.reply('Вы закрыли вопрос без рейтинга')
 
-@dp.message_handler(IDFilter(chat_id=CHAT_IDS), commands=['stats'])
-async def question_stats(message: types.Message):
-    chat = 'pukton' if message.chat.id == -1001800983569 else 'testo' if message.chat.id -1001882385234 else None
-    chats = {'pukton': 1800983569, 'testo': 1882385234}
+@dp.message_handler(IsReplyFilter(is_reply=True), IDFilter(chat_id=CHAT_IDS), commands=['open', 'o'])
+async def open_question(message: types.Message):
+    """
+    команда для открытия вопроса
+    """
+    id, err = get_type(message.reply_to_message)
+    chats = {'pukton': 1619177503, 'testo': 1763723294}
+
+    if id is None:
+        await message.answer(err)
+        return
+
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
     cur = con.cursor()
-    no_help = cur.execute('SELECT id, helper, msg FROM questions WHERE status = ? AND role = ? AND helper IS NULL', (0, chat)).fetchall()
-    helping = cur.execute('SELECT id, helper, msg FROM questions WHERE status = ? AND role = ? AND helper IS NOT NULL', (0, chat)).fetchall()
+    data = cur.execute('SELECT id, user, status FROM questions WHERE id = ?', (int(id),)).fetchone()
+    user = data[1]
+    open_quest = cur.execute('SELECT id, role, msgch FROM questions WHERE user = ? AND status = ?', (user, 0,)).fetchone()
+
+    if open_quest:
+        await message.reply(f'У этого пользователя уже есть открытый вопрос: t.me/c/{chats[open_quest[1]]}/{open_quest[2]}')
+        con.close()
+        return
+
+    if not data:
+        await message.reply('Вопрос не найден')
+        con.close()
+        return
+
+    if data[2] == 0:
+        await message.reply('Вопрос ещё не закрыт')
+        con.close()
+        return
+
+    cur.execute('UPDATE questions SET status = ? WHERE id = ?', (0, int(id),))
+    con.commit()
+    con.close()
+    await message.reply('Вы открыли этот вопрос')
+
+@dp.channel_post_handler(IDFilter(chat_id=CHANNEL_IDS), text=['/stats'])
+async def question_stats(message: types.Message):
+    """
+    статистика по вопросам
+    """
+    logging.info(f'{message}')
+    chat = 'pukton' if message.chat.id == -1001619177503 else 'testo' if message.chat.id -1001763723294 else None
+    chats = {'pukton': 1619177503, 'testo': 1763723294}
+    con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
+    cur = con.cursor()
+    no_help = cur.execute('SELECT id, helper, msgch FROM questions WHERE status = ? AND role = ? AND helper IS NULL', (0, chat)).fetchall()
+    helping = cur.execute('SELECT id, helper, msgch FROM questions WHERE status = ? AND role = ? AND helper IS NOT NULL', (0, chat)).fetchall()
     con.close()
     txt = ''
-    
+
     if len(no_help) < 1 and len(helping) < 1:
-        await message.reply('Не нашлось открытых вопросов по этой роли')
+        await message.edit_text('Не нашлось открытых вопросов по этой роли')
         return
     
     if len(no_help) > 0:
@@ -262,10 +350,34 @@ async def question_stats(message: types.Message):
         for n, i in enumerate(helping, 1):
             txt += f'{n}. id: {i[0]}; отвечающий: {i[1]}; ссылка: t.me/c/{chats[chat]}/{i[2]}\n'
     
-    await message.reply(txt)
+    await message.edit_text(txt)
+
+@dp.channel_post_handler(IDFilter(chat_id=CHANNEL_IDS), text=['/lr'])
+async def last10_questions(message: types.Message):
+    """
+    последние 10 вопросов
+    """
+    logging.info(f'{message}')
+    chat = 'pukton' if message.chat.id == -1001619177503 else 'testo' if message.chat.id -1001763723294 else None
+    chats = {'pukton': 1619177503, 'testo': 1763723294}
+    con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
+    cur = con.cursor()
+    quests = cur.execute('SELECT id, helper, msgch, status FROM questions WHERE role = ? ORDER BY id DESC LIMIT 10', (chat,)).fetchall()
+    con.close()
+    txt = ''
+    txt += '\nПоследние 10 вопросов в этой роли:\n'
+    for n, i in enumerate(quests, 1):
+        helper = i[1] if i[1] is not None else 'нету'
+        status = 'открыт' if i[3] == 0 else "закрыт"
+        txt += f'{n}. id: {i[0]}; отвечающий: {helper}; ссылка: t.me/c/{chats[chat]}/{i[2]}; статус: {status}\n'
+    
+    await message.edit_text(txt)
 
 @dp.callback_query_handler(Text(equals=['1', '2', '3', '4', '5', 'no_rate']))
 async def rate(call: types.CallbackQuery):
+    """
+    оценка ответа после закрытия вопроса с рейтингом
+    """
     await call.answer()
     await bot.delete_message(call.from_user.id, call.message.message_id)
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
@@ -293,6 +405,11 @@ async def rate(call: types.CallbackQuery):
 
 @dp.message_handler(chat_type=ChatType.PRIVATE, content_types='any')
 async def send_msg(message: types.Message):
+    """
+    создает новый вопрос
+    проверяет платеж через апи яндекса если у пользователя нету подписки
+    устанавливает айди сообщения вопроса из канала
+    """
     username = message.from_user.username.lower()
 
     con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
@@ -344,18 +461,33 @@ async def send_msg(message: types.Message):
 
     if not data:
         text = message.text or message.caption
+
         con = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
         cur = con.cursor()
+
         data = cur.execute('SELECT role FROM users WHERE user = ?', (message.from_user.id,)).fetchone()
         cur.execute('INSERT INTO questions (role, text, user, helper) VALUES (?, ?, ?, NULL) RETURNING id', (data[0], text, message.from_user.id))
         row = cur.fetchone()
         id = row[0] if row else None
         username =  '@'+message.from_user.username if message.from_user.username is not None else 'нету юзернейма'
         txt = f'Новый вопрос от {username}\n{text}\n#id{id}'
-        if message.content_type == 'photo' or message.content_type == 'video':
-            await message.copy_to(CHANNELS[data[0]], caption=txt)
+        data = cur.execute('SELECT role, msg FROM questions WHERE user = ? AND status = ?', (message.from_user.id, 0,)).fetchone()
+        msg = None
+
+        if message.content_type == 'text':
+            msg = await bot.send_message(CHANNELS[data[0]], txt)
+            await message.copy_to(CHATS[data[0]], reply_to_message_id=data[1])
+        elif message.content_type == 'video_note':
+            await message.copy_to(CHANNELS[data[0]])
+            msg = await bot.send_message(CHANNELS[data[0]], f'Новый вопрос от {username}\n#id{id}')
+            await message.copy_to(CHATS[data[0]], reply_to_message_id=data[1])
         else:
-            await bot.send_message(CHANNELS[data[0]], txt)
+            msg = await message.copy_to(CHANNELS[data[0]], caption=txt)
+            await message.copy_to(CHATS[data[0]], reply_to_message_id=data[1])
+        
+
+        cur.execute('UPDATE questions SET msgch = ? WHERE id = ?', (msg.message_id, int(id),))
+
         await message.answer(f'Вы можете общаться с теми кто отвечает, просто пришлите мне что-то, и я перешлю это им')
         con.commit()
         con.close()
@@ -366,6 +498,9 @@ async def send_msg(message: types.Message):
 
 @dp.message_handler(IDFilter(chat_id=CHAT_IDS), IsReplyFilter(is_reply=True), content_types='any')
 async def answer_question(message: types.Message):
+    """
+    отправка сообщения хэлпера в лс создателя вопроса
+    """
     id, err = get_type(message.reply_to_message)
     if id is None:
         await message.answer(err)
@@ -388,6 +523,9 @@ async def answer_question(message: types.Message):
 
 @dp.message_handler(IDFilter(chat_id=CHAT_IDS), content_types='any')
 async def set_msg_id(message: types.Message):
+    """
+    ловит пост канала в группе и устанавливает айди вопроса из грппы
+    """
     if message.from_user.id == 777000 and message.sender_chat.id in CHANNEL_IDS:
         id, err = get_type(message)
         if id is None:
