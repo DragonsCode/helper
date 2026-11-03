@@ -1,9 +1,10 @@
+from runtime_config import required_env
 from aiogram import types
 import datetime
 
-TOKEN = '1682322424:AAEdZRXr0FKSdeqrkG5h4zuHNTZnkuveh_o'
+TOKEN = required_env('TELEGRAM_BOT_TOKEN')
 
-INVOICE_TOKEN = '381764678:TEST:41002'
+INVOICE_TOKEN = required_env('TELEGRAM_INVOICE_TOKEN')
 PRICE = types.LabeledPrice(label='Ну купи пожалуйста!!!', amount=9900)
 
 ADMIN = [235519518]

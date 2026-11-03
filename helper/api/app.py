@@ -1,17 +1,19 @@
+from runtime_config import required_env
 from fastapi import FastAPI
 from aiogram import types, Dispatcher, Bot
 from bot.helperV2 import dp, bot
 from config import TOKEN
 from yookassa import Configuration, Payment
 import uuid
+import hashlib
 import sqlite3
 
-Configuration.account_id = '953671'
-Configuration.secret_key = 'test_6Pc60gJhmMl5XTko-HwI7vdc5kdzy34Yt3hdaDq1qlw'
+Configuration.account_id = required_env('YOOKASSA_SHOP_ID')
+Configuration.secret_key = required_env('YOOKASSA_SECRET_KEY')
 
 
 app = FastAPI()
-WEBHOOK_PATH = f"/bot/{TOKEN}"
+WEBHOOK_PATH = "/bot/" + hashlib.sha256(TOKEN.encode()).hexdigest()
 WEBHOOK_URL = "https://757b-84-54-84-124.eu.ngrok.io" + WEBHOOK_PATH
 
 
@@ -34,10 +36,10 @@ async def bot_webhook(update: dict):
 
 @app.get("/pay")
 async def pay(username: str):
-    if not username and len(username) < 4:
+    username = username.strip().lower()
+    if len(username) < 4:
         return {"error": "invalid username"}
     
-    username = username.lower()
     payment = Payment.create({
         "amount": {
             "value": "100.00",
